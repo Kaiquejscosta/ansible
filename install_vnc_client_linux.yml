@@ -1,6 +1,6 @@
  ---
  
-  - name: instalação do VNC client em targsts linux
+  - name: instalação do VNC client em targets linux
     hosts: all
     become: yes
     tasks:
@@ -19,7 +19,7 @@
  
             [Service]
             Type=simple
-            ExecStart=/usr/bin/x11vnc -forever -display :0 -auth guess -passwd 4dm1n
+            ExecStart=/usr/bin/x11vnc -forever -display :0 -auth guess -passwd **** #substitua os asteriscos pela a senha que deseja usar
             ExecStop=/usr/bin/killall x11vnc
             Restart=on-failure
  
