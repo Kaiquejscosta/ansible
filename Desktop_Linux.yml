@@ -1,0 +1,116 @@
+---
+
+- name: configuração completa máquina linux
+  hosts: all
+  become: yes
+  vars:
+    pacotes:
+      - vim
+      - x11vnc
+      - resolvconf
+      - libusb-0.1-4
+      - net-tools
+      - cid-gtk
+      - tree
+  tasks:
+    - name: upgrade no sistema. Isso pode demorar um pouco por favor aguarde !
+      ansible.builtin.apt:
+        upgrade: yes
+      tags: upgrade
+        
+    - name: puxando repositório cid-gtk
+      ansible.builtin.command: apt-add-repository ppa:emoraes25/cid -y
+      tags: repository
+
+    - name: atualizando repositórios
+      ansible.builtin.apt:
+        update_cache: yes
+      tags: update
+
+    - name: instalação de pacotes
+      ansible.builtin.apt:
+        name: "{{ pacotes }}"
+        state: present
+      tags: pacotes
+
+    - name: alterando senha do root
+      ansible.builtin.user:
+        name: root
+        password: "{{ '123456' | password_hash('sha512') }}"
+      tags: senhaRoot
+
+    - name: configurando arquivo sshd_config
+      lineinfile: 
+        path: /etc/ssh/sshd_config
+        regexp: '^#PermitRootLogin*'
+        line: 'PermitRootLogin yes'
+      tags: linessh
+        
+    - name: modificando arquivo de config
+      ansible.builtin.copy:
+        dest: /lib/systemd/system/x11vnc.service
+        content: |
+          [Unit]
+          Description=x11vnc.service
+          After=display-manager.service network.target syslog.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/bin/x11vnc -forever -display :0 -auth guess -passwd 4dm1n
+          ExecStop=/usr/bin/killall x11vnc
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+
+        mode: '0777'
+        owner: root
+        group: root
+      tags: x11vnc.service
+
+    - name: daemon-reload
+      ansible.builtin.command: systemctl daemon-reload
+      tags: daemon
+
+    - name: iniciando x11vnc.service
+      ansible.builtin.service:
+        name: x11vnc.service
+        state: started
+      tags: vnc.service
+
+    - name: enable x11vnc.service
+      ansible.builtin.command: systemctl enable x11vnc.service
+      tags: enable
+
+    - name: adicionando linha  nameserver no arquivo de configuração do resolvconf
+      ansible.builtin.blockinfile:
+        path: /etc/resolvconf/resolv.conf.d/head
+        block: |
+          nameserver 192.168.1.5
+          nameserver dominio.local
+          search dominio.local
+        insertafter: EOF
+      tags: lineresolv
+
+    - name: iniciando serviço do resolvconf e enable
+      ansible.builtin.service:
+        name: resolvconf.service
+        state: started
+        enabled: yes
+      tags: resolvconf.service
+
+    - name: baixando arquivo .deb
+      ansible.builtin.get_url:
+        url: "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
+        dest: /home/google-chrome-stable_current_amd64.deb
+      tags: .deb
+
+    - name: instalando arquivo .deb
+      ansible.builtin.apt:
+        deb: "/home/google-chrome-stable_current_amd64.deb"
+
+...
+
+#nessa playbook será necessario apenas realizar a instalação do sistema operacional,colocar a máquina na rede, realizar apt update do sistema, (não precisa do UPGRADE) e instalar o ssh,
+#depois disso pode rodar a playbook com
+#a variável do do arquivo de inventário tem que está configurada com usuário admin local da máquina.
