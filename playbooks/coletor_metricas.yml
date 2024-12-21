@@ -1,0 +1,144 @@
+---
+
+ - name: configurando serviços e scripts para coleta de métricas de serviços
+   hosts: all
+   become: yes
+   tasks:
+     - name: copindo binário paras os targets
+       ansible.builtin.copy:
+         src: /etc/ansible/node/node_exporter
+         dest: /usr/local/bin
+         mode: '0777'
+       tags: binario
+
+     - name: criar diretórios
+       ansible.builtin.command: mkdir -p /var/lib/node_exporter/textfile_collector/
+       tags: pastas
+
+     - name: serviço node_exporter
+       ansible.builtin.copy:
+         dest: /etc/systemd/system/node_exporter.service
+         content:  |
+           [Unit]
+           Description=Node Exporter Prometheus
+           Wants=network-online.target
+           After=network-online.target
+
+           [Service]
+           User=root
+           Group=root
+           Type=simple
+           ExecStart=/usr/local/bin/node_exporter \
+               --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
+
+           [Install]
+           WantedBy=multi-user.target
+
+
+         mode: '0777'
+         owner: root
+         group: root
+       tags: service_node
+
+     - name: iniciando serviço node_exporter
+       ansible.builtin.systemd:
+         name: node_exporter.service
+         state: started
+         enabled: yes
+         daemon_reload: yes
+
+     - name: verificando se a pasta existe
+       ansible.builtin.stat:
+         path: /root/scripts
+       register: pasta_status
+
+     - name: criar pasta caso ela não exista
+       ansible.builtin.file:
+         path: /root/scripts
+        state: directory
+         mode: '0777'
+       when: not pasta_status.stat.exists
+
+     - name: Copiando arquivos wrapper.sh caso não tenha
+       ansible.builtin.copy:
+         src: "{{ item.src }}"
+         dest: "{{ item.dest }}"
+         mode: '0777'
+       with_items:
+         - { src: '/etc/ansible/node/scripts/wrapper.sh', dest: '/root/scripts/wrapper.sh' }
+         - { src: '/etc/ansible/node/scripts/socin.sh', dest: '/root/scripts/socin.sh' }
+       tags: wrapper_socin
+
+     - name: criando link simbólico /root/scripts/*.sh /etc/init.d/*.sh
+       ansible.builtin.command: ln -s /root/scripts/wrapper.sh /etc/init.d/wrapper
+       ignore_errors: yes
+       tags: link
+
+     - name: criando link simbólico /root/scripts/*.sh /etc/init.d/*.sh
+       ansible.builtin.command: ln -s /root/scripts/socin.sh /etc/init.d/socin
+       ignore_errors: yes
+       tags: link2
+
+     - name: mandando coletor_metricas_services.sh para /usr/local/bin
+       ansible.builtin.copy:
+         src: /etc/ansible/node/coletor_metricas_services.sh
+         dest: /usr/local/bin
+         mode: '0777'
+         owner: root
+         group: root
+
+     - name: mandando coletor_metricas_services.service
+       ansible.builtin.copy:
+         dest: /etc/systemd/system/coletor_metricas_services.service
+         content:  |
+           [Unit]
+           Description=coletor_metricas_services
+           After=network.target
+
+
+           [Service]
+           Type=oneshot
+           ExecStart=/usr/local/bin/coletor_metricas_services.sh
+           User=root
+
+           [Install]
+           WantedBy=multi-user.target
+
+         mode: '0777'
+         owner: root
+         group: root
+
+     - name: mandando coletor_metricas_services.timer
+       ansible.builtin.copy:
+         dest: /etc/systemd/system/coletor_metricas_services.timer
+         content:  |
+           [Unit]
+           Description=coletor_metricas_services.timer
+
+           [Timer]
+           OnCalendar=*:*:00
+           AccuracySec=10s
+           Persistent=true
+
+           [Install]
+           WantedBy=timers.target
+
+         mode: '0777'
+         owner: root
+         group: root
+
+     - name: iniciando .service
+       ansible.builtin.systemd:
+         name: coletor_metricas_services.service
+         state: started
+         enabled: yes
+         daemon_reload: yes
+
+     - name: iniciando .timer
+       ansible.builtin.systemd:
+         name: coletor_metricas_services.timer
+         state: started
+         enabled: yes
+         daemon_reload: yes
+
+...
