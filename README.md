@@ -1,4 +1,4 @@
-# 🤖 Automatização com Ansible
+# 🤖 Automação com Ansible
 
 Este repositório é dedicado a soluções de 🛠️ automação utilizando o Ansible, contendo playbooks prontos para tarefas diversas. Ele é ideal para quem deseja gerenciar configurações e implantar aplicações de forma eficiente em ambientes de TI.
 
